@@ -5,7 +5,6 @@ import kotlin.random.Random
 
 class MusicGenerator(private val sampleRate: Int = 44100) {
 
-    // پارامترهای قابل تنظیم از UI
     var bassIntensity: Float = 1.0f
     var kickIntensity: Float = 1.0f
     var bpm: Int = 126
@@ -43,11 +42,11 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
         for (i in buffer.indices) {
             val step = (i / noteLen) % pattern.size
             val offset = pattern[step]
-            if (offset < 0) continue
-            val freq = midiToFreq(base - 12 + offset)
+            val freq = midiToFreq(base + offset)
             val t = (i % noteLen).toDouble() / sampleRate
-            val env = exp(-t * 8.0)
-            buffer[i] += sin(2 * PI * freq * t).toFloat() * 0.55f * bassIntensity * env.toFloat()
+            val env = exp(-t * 3.5)
+            val wave = sin(2 * PI * freq * t) + 0.5 * sin(2 * PI * freq * 2 * t)
+            buffer[i] += (wave * 0.45 * bassIntensity * env).toFloat()
         }
     }
 
@@ -60,13 +59,11 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
             val noteOffset = scale[step % scale.size]
             val freq = midiToFreq(base + noteOffset)
             val t = (i % noteLen).toDouble() / sampleRate
-            val env = exp(-t * 6.0)
-
+            val env = exp(-t * 3.0)
             val phase = (t * freq) % 1.0
             val saw = (phase * 2 - 1)
-            val distorted = tanh(saw * 3.5).toFloat()
-
-            buffer[i] += distorted * 0.32f * bassIntensity * env.toFloat()
+            val distorted = tanh(saw * 6.0).toFloat()
+            buffer[i] += distorted * 0.30f * bassIntensity * env.toFloat()
         }
     }
 
@@ -79,7 +76,7 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
             false, false, true, false
         )
         val stepLen = beat / 4
-        val kickLen = (sampleRate * 0.35).toInt()
+        val kickLen = (sampleRate * 0.45).toInt()
 
         for (s in kickSteps.indices) {
             if (!kickSteps[s]) continue
@@ -88,28 +85,30 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
                 val idx = start + i
                 if (idx >= buffer.size) break
                 val t = i.toDouble() / sampleRate
-                val freq = 55.0 * exp(-t * 28) + 38.0
-                val env = exp(-t * 7.0)
-                buffer[idx] += (sin(2 * PI * freq * t) * 0.85 * kickIntensity * env).toFloat()
+                val freq = 45.0 + 135.0 * exp(-t * 25)
+                val env = exp(-t * 4.5)
+                val body = sin(2 * PI * freq * t)
+                val click = sin(2 * PI * freq * 3 * t) * 0.4 * exp(-t * 80)
+                buffer[idx] += ((body + click) * 1.0 * kickIntensity * env).toFloat()
             }
         }
     }
 
     private fun generateHats(buffer: FloatArray, beat: Int) {
         val stepLen = beat / 4
-        val hatLen = (sampleRate * 0.06).toInt()
+        val hatLen = (sampleRate * 0.08).toInt()
         for (s in 0 until 16) {
             if (s % 2 == 1 && Random.nextFloat() > 0.65f) continue
             val start = s * stepLen
+            var prev = 0f
             for (i in 0 until hatLen) {
                 val idx = start + i
                 if (idx >= buffer.size) break
-                val env = exp(-i.toDouble() / hatLen * 8)
+                val env = exp(-i.toDouble() / hatLen * 6)
                 val noise = (Random.nextFloat() * 2 - 1)
-                if (i > 0) {
-                    val prev = (Random.nextFloat() * 2 - 1)
-                    buffer[idx] += ((noise - prev) * 0.08 * env).toFloat()
-                }
+                val hp = noise - prev
+                prev = noise
+                buffer[idx] += (hp * 0.10 * env).toFloat()
             }
         }
     }
@@ -125,7 +124,7 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
                 val wave = sin(2 * PI * freq * detune * lfo * t) +
                         sin(2 * PI * freq * 0.997 * t) * 0.5
                 val fade = (sin(PI * i.toDouble() / buffer.size)).coerceAtLeast(0.0)
-                buffer[i] += (wave * 0.06 * fade).toFloat()
+                buffer[i] += (wave * 0.05 * fade).toFloat()
             }
         }
     }
@@ -134,11 +133,11 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
         val noteLen = beat / 2
         var pos = 0
         while (pos < buffer.size) {
-            if (Random.nextFloat() < 0.35f) {
+            if (Random.nextFloat() < 0.45f) {
                 pos += noteLen
                 continue
             }
-            val octave = if (Random.nextBoolean()) 24 else 36
+            val octave = if (Random.nextBoolean()) 12 else 24
             val noteOffset = scale[Random.nextInt(scale.size)]
             val freq = midiToFreq(base + octave + noteOffset)
             val len = noteLen * Random.nextInt(1, 3)
@@ -147,12 +146,12 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
                 val t = (i - pos).toDouble() / sampleRate
                 val noteDur = (end - pos).toDouble() / sampleRate
                 val env = when {
-                    t < 0.01 -> t / 0.01
-                    t > noteDur - 0.3 -> (noteDur - t) / 0.3
+                    t < 0.02 -> t / 0.02
+                    t > noteDur - 0.4 -> ((noteDur - t) / 0.4).coerceAtLeast(0.0)
                     else -> 1.0
-                }.coerceIn(0.0, 1.0)
+                }
                 val wave = sin(2 * PI * freq * t) + 0.3 * sin(2 * PI * freq * 2 * t)
-                buffer[i] += (wave * 0.09 * env).toFloat()
+                buffer[i] += (wave * 0.11 * env).toFloat()
             }
             pos = end + (sampleRate * 0.05).toInt()
         }
@@ -165,7 +164,7 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
             val noise = (Random.nextFloat() * 2 - 1)
             lastNoise = lastNoise * 0.995f + noise * 0.005f
             val mod = (0.5 + 0.5 * sin(2 * PI * 0.07 * t)).toFloat()
-            buffer[i] += lastNoise * 0.12f * mod
+            buffer[i] += lastNoise * 0.10f * mod
         }
     }
 
@@ -176,10 +175,9 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
             (sampleRate * 0.0411).toInt(),
             (sampleRate * 0.0437).toInt()
         )
-        val feedback = 0.75f
         for (d in delays) {
             for (i in d until buffer.size) {
-                buffer[i] += buffer[i - d] * feedback * 0.25f
+                buffer[i] += buffer[i - d] * 0.75f * 0.22f
             }
         }
     }
@@ -190,11 +188,11 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
         var tap2 = 0f
         for (i in buffer.indices) {
             val input = buffer[i]
-            val out = tap1 * 0.35f + tap2 * 0.2f
+            val out = tap1 * 0.30f + tap2 * 0.18f
             buffer[i] = input + out
             if (i >= delaySamples) {
                 tap2 = tap1
-                tap1 = input + buffer[i - delaySamples] * 0.4f
+                tap1 = input + buffer[i - delaySamples] * 0.35f
             }
         }
     }
@@ -205,7 +203,7 @@ class MusicGenerator(private val sampleRate: Int = 44100) {
         if (max < 0.001f) return
         val gain = 0.92f / max
         for (i in buffer.indices) {
-            buffer[i] = tanh(buffer[i] * gain * 1.2).toFloat()
+            buffer[i] = tanh(buffer[i] * gain * 1.3).toFloat()
         }
     }
 
