@@ -1,4 +1,4 @@
-package com.example.deepmusic
+example.deepmusic
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -103,6 +103,4 @@ class MusicPlayer(private val context: Context) {
         isPlaying = false
         job?.cancel()
         scope.cancel()
-        scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    }
-}
+        scope = CoroutineScope
