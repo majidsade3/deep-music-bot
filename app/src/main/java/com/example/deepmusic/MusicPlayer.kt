@@ -1,15 +1,23 @@
-example.deepmusic
+package com.example.deepmusic
 
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 class MusicPlayer(private val context: Context) {
 
-    private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var job: Job? = null
     private val generator = MusicGenerator()
 
@@ -91,7 +99,7 @@ class MusicPlayer(private val context: Context) {
             val end = minOf(offset + chunkSize, samples.size)
             track.write(samples, offset, end - offset)
             offset = end
-            if (!isActive) break
+            if (!currentCoroutineContext().isActive) break
         }
 
         delay(500)
@@ -102,5 +110,5 @@ class MusicPlayer(private val context: Context) {
     fun stop() {
         isPlaying = false
         job?.cancel()
-        scope.cancel()
-        scope = CoroutineScope
+    }
+}
